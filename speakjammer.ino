@@ -11,12 +11,7 @@
 #define STATE_SELECT_ROW 1
 #define STATE_SELECT_CONTROL_CODE 2
 
-
-
 U8G2_ST7920_128X64_F_SW_SPI u8g2(U8G2_R1, LCD_SCK_CLOCK, LCD_SID_DATA, LCD_CS, U8X8_PIN_NONE);
-
-//FIXME hardware serial (indien beschikbaar)
-SoftwareSerial speakjet = SoftwareSerial(0, SPEAKJET_TX);
 
 byte controlCodes[NUMBER_OF_CHANNELS][NUMBER_OF_ROWS] = {
   {220, 221, 222, 223, 224, 225, 226, 227, 228, 229},
@@ -52,32 +47,6 @@ void setupEncoder() {
   Timer1.attachInterrupt(timerIsr);
 }
 
-void setupSpeakjet()
-{
-  pinMode(SPEAKJET_TX, OUTPUT);
-  pinMode(SPEAKJET_SPK, INPUT);
-
-  speakjet.begin(9600);
-
-  pinMode(SPEAKJET_RDY, INPUT);
-  pinMode(SPEAKJET_RES, OUTPUT);
-
-  for (int i = SPEAKJET_E0; i <= SPEAKJET_E7; i++)
-  {
-    pinMode(i, OUTPUT);
-    digitalWrite(i, LOW);
-  }
-
-  resetSpeakjet();
-}
-
-void resetSpeakjet()
-{
-  digitalWrite(SPEAKJET_RES, LOW);
-  delay(100);
-  digitalWrite(SPEAKJET_RES, HIGH);
-}
-
 void setupButtons() {
   pinMode(PLAY_BUTTON_1, INPUT_PULLUP);
   pinMode(PLAY_BUTTON_2, INPUT_PULLUP);
@@ -85,45 +54,10 @@ void setupButtons() {
 
 void loop(void)
 {
-  //FIXME handle CV's
-  //FIXME volume (20) =  0 - 127
-  //FIXME speed (21 )=  0 - 127
-  //FIXME pitch (22 )=  0 - 255
-  //FIXME bend (23) =  0 - 15
-  int volumeCV = map(analogRead(CV_VOLUME), 0, 1023, 0, 255);
-  Serial.print("Volume CV:");
-  Serial.print(volumeCV);
-  Serial.print("\n");
-  speakjet.write(22);
-  speakjet.write(volumeCV);
+  processCVValues();
+  processTriggers();
 
-  //FIXME handle play buttons
-  if (!digitalRead(SPEAKJET_SPK)) {
-    //FIXME use array for buttons!
-    if (!digitalRead(PLAY_BUTTON_1)) {
-      Serial.println("PLAY_BUTTON_1 Button clicked");
-      for (int i = 0; i < NUMBER_OF_ROWS; i++)
-      {
-        speakjet.write(controlCodes[0][i]);
-      }
-
-    }
-    if (!digitalRead(PLAY_BUTTON_2)) {
-      Serial.println("PLAY_BUTTON_2 Button clicked");
-      for (int i = 0; i < NUMBER_OF_ROWS; i++)
-      {
-        speakjet.write(controlCodes[1][i]);
-      }
-    }
-  }
-  else
-  {
-    Serial.println("Speaking");
-  }
-
-
-
-  //FIXME handle encoder button (state pattern?)
+  //FIXME handle encoder button
   ClickEncoder::Button button = encoder->getButton();
   if (button == ClickEncoder::DoubleClicked) {
     if (state != STATE_SELECT_CHANNEL) {
@@ -185,4 +119,34 @@ void loop(void)
   }
 
   delay(100);
+}
+
+inline void processCVValues()
+{
+  //FIXME handle CV's
+  //FIXME volume (20) =  0 - 127
+  //FIXME speed (21 )=  0 - 127
+  //FIXME pitch (22 )=  0 - 255
+  //FIXME bend (23) =  0 - 15
+  int volumeCV = map(analogRead(CV_VOLUME), 0, 1023, 0, 255);
+  Serial.print("Volume CV:");
+  Serial.print(volumeCV);
+  Serial.print("\n");
+  setSpeakjetVolume(volumeCV);
+}
+
+inline void processTriggers()
+{
+  if (!speakjetBussy()) {
+    if (!digitalRead(PLAY_BUTTON_1)) {
+      Serial.println("PLAY_BUTTON_1 Button clicked");
+      speakjetWrite(controlCodes[0]);
+    }
+    if (!digitalRead(PLAY_BUTTON_2)) {
+      Serial.println("PLAY_BUTTON_2 Button clicked");
+      speakjetWrite(controlCodes[1]);
+    }
+    //FIXME button 3
+    //FIXME button 4
+  }
 }
